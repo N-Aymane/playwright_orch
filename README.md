@@ -1,299 +1,304 @@
-# Autonomous Web Testing & Self-Healing Multi-Agent Framework
+# 🤖 Autonomous Web Testing & Self-Healing Multi-Agent Framework
 
-A production-grade Python framework that autonomously explores web applications, fills forms with AI-generated mock data, executes Playwright browser actions, and **self-heals** when locators fail — all driven by a 3-agent LangGraph state machine.
+> **Production-grade AI-powered web testing framework built with LangGraph + Playwright.**
+>
+> Autonomously explores web applications, generates intelligent test plans, fills forms with AI-generated mock data, executes browser actions, and automatically repairs broken locators using a self-healing multi-agent architecture.
 
 ---
 
-## ✨ Features
+# ✨ Features
 
 | Feature | Description |
-|---|---|
-| 🧠 **Planner Agent** | Analyzes page accessibility trees and generates structured test plans from plain-English goals |
-| ⚡ **Executor Agent** | Synthesizes contextually valid mock data (emails, passwords, phone numbers) and executes Playwright actions |
-| 🔧 **Healer Agent** | Intercepts failures, analyzes live DOM state, proposes role-based locator fixes, and retries automatically |
-| 📊 **Rich HTML Reports** | Interactive, dark-mode test execution report with step-by-step status, errors, and trace links |
-| 🎭 **Playwright Tracing** | Full execution trace recording (screenshots + network + snapshots) viewable at trace.playwright.dev |
-| 📡 **Error Monitoring** | Console error and network failure (4xx/5xx) interception logged for debugging |
-| 🔌 **OpenAI Compatible** | Works with OpenAI API, Azure OpenAI, or any OpenAI-compatible LLM endpoint |
+|----------|-------------|
+| 🧠 **Planner Agent** | Converts natural language goals into structured browser test plans |
+| ⚡ **Executor Agent** | Executes Playwright actions with AI-generated mock form data |
+| 🔧 **Self-Healing Agent** | Repairs broken locators by analyzing the live DOM and retrying failed steps |
+| 🎭 **Playwright Tracing** | Records screenshots, network activity, DOM snapshots, and execution timeline |
+| 📊 **Rich HTML Reports** | Interactive execution reports with logs, failures, and trace links |
+| 📡 **Error Monitoring** | Captures browser console errors and failed network requests |
+| 🔌 **OpenAI Compatible** | Works with OpenAI, Azure OpenAI, Ollama, LM Studio, and compatible APIs |
 
 ---
 
-## 📂 Project Structure
+# 🏗️ Architecture
 
+```text
+                User Goal
+                    │
+                    ▼
+        ┌─────────────────────┐
+        │   Planner Agent     │
+        │   (LangGraph)       │
+        └──────────┬──────────┘
+                   │
+                   ▼
+        ┌─────────────────────┐
+        │  Executor Agent     │
+        │  (Playwright)       │
+        └──────────┬──────────┘
+                   │
+           Success?│
+             │     │
+            Yes    No
+             │     ▼
+             │ ┌──────────────────┐
+             │ │  Healer Agent    │
+             │ │ Repairs Locators │
+             │ └────────┬─────────┘
+             └──────────┘
+                    │
+                    ▼
+        HTML Report • JSON • Trace
 ```
+
+---
+
+# 📁 Project Structure
+
+```text
 agentic_web_tester/
-├── config.py                 # System configuration, LLM parameters, Playwright settings
-├── schemas.py                # Pydantic models: TestStep, AgentState, ActionType
-├── browser_engine.py         # Async Playwright wrapper with tracing & accessibility snapshots
-├── orchestrator.py           # LangGraph state machine routing between the 3 agents
 │
 ├── agents/
 │   ├── __init__.py
-│   ├── planner.py            # Planner Agent: DOM-aware test plan generation
-│   ├── executor.py           # Executor Agent: form data synthesis
-│   └── healer.py             # Healer Agent: self-healing locator repair
+│   ├── planner.py
+│   ├── executor.py
+│   └── healer.py
 │
 ├── utils/
 │   ├── __init__.py
-│   ├── dom_parser.py         # Accessibility tree pruning & formatting for LLM context
-│   ├── logger.py             # Structured JSON + Rich console logging
-│   └── reporter.py           # HTML & JSON test report generation
+│   ├── dom_parser.py
+│   ├── logger.py
+│   └── reporter.py
 │
 ├── scratch/
-│   └── test_server.py        # Local mock server with clean + mutated registration forms
+│   └── test_server.py
 │
-├── main.py                   # CLI entry point
-├── requirements.txt          # Python dependencies
-└── .env.example              # Environment variable template
+├── browser_engine.py
+├── config.py
+├── orchestrator.py
+├── schemas.py
+├── main.py
+├── requirements.txt
+└── .env.example
 ```
 
 ---
 
-## ⚡ Quick Start
+# 📋 Requirements
 
-### 1. Install Dependencies
+- Python **3.11+**
+- Chromium (installed through Playwright)
+- OpenAI API key (or compatible endpoint)
 
-```powershell
-pip install --user -r requirements.txt
-python -m playwright install chromium
-```
+---
 
-### 2. Configure API Key
+# ⚡ Installation
 
-Copy `.env.example` to `.env` and set your OpenAI API key:
+## 1. Clone the repository
 
 ```bash
-cp .env.example .env
-# Then edit .env:
-OPENAI_API_KEY=sk-your-key-here
-```
-
-### 3. Run Against a Live Site
-
-```powershell
-python main.py --url "https://demoqa.com/automation-practice-form" `
-               --goal "Fill out the practice automation form with valid personal information"
-```
-
-### 4. Run Against Local Test Server (Self-Healing Demo)
-
-Start the mock server in one terminal:
-```powershell
-python scratch/test_server.py
-```
-
-Run the agent against the **clean form** (Version A):
-```powershell
-python main.py --url "http://localhost:8765" `
-               --goal "Register a new user account with valid email and password"
-```
-
-Run the agent against the **mutated form** (Version B — triggers healing):
-```powershell
-python main.py --url "http://localhost:8765/mutated" `
-               --goal "Register a new user account with valid email and password"
+git clone https://github.com/yourusername/agentic-web-tester.git
+cd agentic-web-tester
 ```
 
 ---
 
-## 🔧 CLI Options
+## 2. Create a virtual environment
 
-```
-python main.py [OPTIONS]
+### Windows PowerShell
 
-Options:
-  --url          Target URL to test (REQUIRED)
-  --goal         Plain-English testing goal (REQUIRED)
-  --headless     Run browser headless: true/false (default: from .env, true)
-  --model        Override LLM model (e.g. gpt-4o, gpt-4o-mini)
-  --trace        Playwright trace output path (default: trace.zip)
-  --report       HTML report output path (default: report.html)
-  --json-report  JSON report output path (default: report.json)
-```
-
----
-
-## 🧠 How It Works
-
-```
-User provides URL + Goal
-        │
-        ▼
-┌──────────────────┐
-│   PLAN Node      │  ← Planner Agent
-│  (LangGraph)     │    Navigates to URL, snapshots accessibility tree,
-│                  │    calls LLM to generate step sequence
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  EXECUTE Node    │  ← Browser Engine + Executor Agent
-│  (LangGraph)     │    Synthesizes form data if needed, runs Playwright action
-│                  │
-└────────┬─────────┘
-         │
-    ┌────┴────┐
-    │         │
-  PASS?      FAIL?
-    │         │
-    │         ▼
-    │  ┌──────────────────┐
-    │  │   HEAL Node      │  ← Healer Agent
-    │  │   (LangGraph)    │    Snapshots live DOM, calls LLM with failure context,
-    │  │                  │    proposes new Playwright locator, retries step
-    │  └────────┬─────────┘
-    │           │
-    └───────────┘
-         │
-   All steps done?
-         │
-         ▼
-  Generate Reports
-  (HTML + JSON + Trace)
-```
-
----
-
-## 📋 Configuration Reference
-
-All settings can be set in `.env` or overridden via CLI:
-
-| Variable | Default | Description |
-|---|---|---|
-| `OPENAI_API_KEY` | (required) | Your OpenAI API key |
-| `OPENAI_API_BASE` | `https://api.openai.com/v1` | LLM API base URL |
-| `LLM_MODEL` | `gpt-4o-mini` | LLM model for all agents |
-| `LLM_TEMPERATURE` | `0.0` | LLM determinism (0 = most deterministic) |
-| `HEADLESS` | `true` | Whether browser runs headless |
-| `BROWSER_TIMEOUT` | `10000` | Browser navigation timeout (ms) |
-| `DEFAULT_WAIT_TIME` | `5000` | Locator action timeout (ms) |
-| `TRACE_PATH` | `trace.zip` | Playwright trace output path |
-| `REPORT_PATH` | `report.html` | HTML report output path |
-
----
-
-## 📊 Output Files
-
-After each run, the following files are generated in the working directory:
-
-| File | Description |
-|---|---|
-| `report.html` | Interactive dark-mode HTML test report |
-| `report.json` | Machine-readable JSON execution summary |
-| `trace.zip` | Full Playwright execution trace (screenshots + network) |
-| `logs/execution.log` | Plain text execution log |
-| `logs/execution.json.log` | Structured JSON log for log aggregators |
-
-### Viewing the Trace
-
-```powershell
-npx playwright show-trace trace.zip
-```
-Or upload `trace.zip` to **[trace.playwright.dev](https://trace.playwright.dev)**.
-
----
-
-## 🧪 Action Types
-
-| Action Type | Description |
-|---|---|
-| `navigate` | Navigate browser to a URL |
-| `click` | Click a button, link, or interactive element |
-| `fill` | Type into a text/email/password/tel input |
-| `select` | Choose an option from a `<select>` dropdown |
-| `check` | Toggle a checkbox |
-| `assert_text` | Verify text appears on the page |
-| `wait_for_selector` | Wait for an element to become visible |
-
----
-
-## 🔌 Using with Local LLMs (Ollama / LM Studio)
-
-Set `OPENAI_API_BASE` to your local server endpoint:
-
-```bash
-# Ollama
-OPENAI_API_BASE=http://localhost:11434/v1
-OPENAI_API_KEY=ollama
-LLM_MODEL=llama3.1
-
-# LM Studio
-OPENAI_API_BASE=http://localhost:1234/v1
-OPENAI_API_KEY=lmstudio
-LLM_MODEL=your-model-name
-```
----
-
-## steps
-Follow these steps in order on Windows.
-
-**1. Open a terminal in the project folder**
-Use the workspace root:
-```powershell
-cd C:\Users\ayman\Downloads\playwright
-```
-
-**2. Create a virtual environment**
 ```powershell
 python -m venv .venv
-```
-
-**3. Activate it**
-PowerShell:
-```powershell
 .venv\Scripts\Activate.ps1
 ```
-If that is blocked, run:
+
+If execution is blocked:
+
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .venv\Scripts\Activate.ps1
 ```
 
-CMD:
+### Windows CMD
+
 ```cmd
 .venv\Scripts\activate.bat
 ```
 
-**4. Install dependencies**
+---
+
+## 3. Install dependencies
+
 ```powershell
 pip install -r requirements.txt
-```
-
-**5. Install the Playwright browser**
-```powershell
 python -m playwright install chromium
 ```
 
-**6. Create your environment file**
-Copy .env.example to `.env`, then set:
-- `OPENAI_API_KEY` to your key
-- optionally `HEADLESS=false` if you want to see the browser window
+---
 
-The app will not start without `OPENAI_API_KEY`.
+## 4. Configure environment
 
-**7. Start the local demo server, if you want to test the bundled sample app**
-Open a second terminal and run:
+Copy
+
+```text
+.env.example
+```
+
+to
+
+```text
+.env
+```
+
+Then edit:
+
+```env
+OPENAI_API_KEY=sk-your-key-here
+
+HEADLESS=true
+
+LLM_MODEL=gpt-4o-mini
+```
+
+---
+
+# 🚀 Running the Framework
+
+## Run against a live website
+
+```powershell
+python main.py ^
+--url "https://demoqa.com/automation-practice-form" ^
+--goal "Fill out the practice automation form with valid personal information"
+```
+
+---
+
+## Run the local demo
+
+Start the demo server:
+
 ```powershell
 python scratch/test_server.py
 ```
 
-**8. Run the framework**
-For the sample app:
+Open another terminal:
+
 ```powershell
-python main.py --url "http://localhost:8765" --goal "Register a new user account"
+python main.py ^
+--url http://localhost:8765 ^
+--goal "Register a new user account"
 ```
 
-For the mutated version that exercises self-healing:
-```powershell
-python main.py --url "http://localhost:8765/mutated" --goal "Register a new user account on the mutated form"
-```
-
-If you want, I can now walk you through this one command at a time and wait for you after each step.
 ---
 
-## 📄 License
+## Test the self-healing system
+
+Run the intentionally mutated version:
+
+```powershell
+python main.py ^
+--url http://localhost:8765/mutated ^
+--goal "Register a new user account"
+```
+
+The mutated application intentionally breaks element locators so the **Healer Agent** can repair them automatically.
+
+---
+
+# ⚙️ CLI Options
+
+```text
+python main.py [OPTIONS]
+
+Required:
+  --url             Target URL
+  --goal            Natural language testing goal
+
+Optional:
+  --headless        true / false
+  --model           Override LLM model
+  --trace           Playwright trace output path
+  --report          HTML report path
+  --json-report     JSON report path
+```
+
+---
+
+# 🔧 Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENAI_API_KEY` | Required | OpenAI API key |
+| `OPENAI_API_BASE` | https://api.openai.com/v1 | OpenAI compatible endpoint |
+| `LLM_MODEL` | gpt-4o-mini | LLM model |
+| `LLM_TEMPERATURE` | 0.0 | Model temperature |
+| `HEADLESS` | true | Run browser headless |
+| `BROWSER_TIMEOUT` | 10000 | Browser timeout (ms) |
+| `DEFAULT_WAIT_TIME` | 5000 | Locator timeout (ms) |
+| `TRACE_PATH` | trace.zip | Trace output |
+| `REPORT_PATH` | report.html | HTML report output |
+
+---
+
+# 📊 Generated Output
+
+After each execution the framework generates:
+
+| File | Description |
+|------|-------------|
+| `report.html` | Interactive HTML report |
+| `report.json` | JSON execution summary |
+| `trace.zip` | Playwright trace |
+| `logs/execution.log` | Text log |
+| `logs/execution.json.log` | Structured JSON log |
+
+### View the Playwright Trace
+
+```powershell
+npx playwright show-trace trace.zip
+```
+
+Or upload `trace.zip` to:
+
+https://trace.playwright.dev
+
+---
+
+# 🎯 Supported Actions
+
+| Action | Description |
+|--------|-------------|
+| `navigate` | Open a URL |
+| `click` | Click an element |
+| `fill` | Fill text/email/password inputs |
+| `select` | Select dropdown option |
+| `check` | Toggle checkbox |
+| `assert_text` | Verify page text |
+| `wait_for_selector` | Wait for an element |
+
+---
+
+# 🖥️ Using Local LLMs
+
+### Ollama
+
+```env
+OPENAI_API_BASE=http://localhost:11434/v1
+OPENAI_API_KEY=ollama
+LLM_MODEL=llama3.1
+```
+
+### LM Studio
+
+```env
+OPENAI_API_BASE=http://localhost:1234/v1
+OPENAI_API_KEY=lmstudio
+LLM_MODEL=your-model-name
+```
+
+---
+
+# 📄 License
 
 MIT License — Free to use, modify, and distribute.
-#   p l a y w r i g h t _ o r c h 
- 
- 
