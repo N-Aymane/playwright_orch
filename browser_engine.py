@@ -61,17 +61,25 @@ class PlaywrightBrowserEngine:
         logger.info(f"Navigating browser to: {url}")
         await self.page.goto(url, wait_until="load", timeout=config.BROWSER_TIMEOUT)
 
-    async def get_accessibility_tree(self) -> Dict[str, Any]:
+    async def get_accessibility_tree(self) -> str:
         """
-        Retrieves the page's current accessibility tree snapshot.
+        Extracts the page ARIA accessibility snapshot for LLM context.
+        Uses the modern Playwright aria_snapshot() API; falls back to the full
+        DOM HTML if the ARIA snapshot is unavailable.
         """
         if not self.page:
-            return {}
+            return ""
         try:
-            return await self.page.accessibility.snapshot() or {}
+            # Modern Playwright ARIA snapshot (replaces deprecated page.accessibility)
+            return await self.page.locator("body").aria_snapshot()
         except Exception as e:
-            logger.error(f"Failed to capture accessibility snapshot: {e}")
-            return {}
+            logger.error(f"ARIA snapshot failed, falling back to page.content(): {e}")
+            try:
+                return await self.page.content()
+            except Exception as inner_e:
+                logger.error(f"page.content() fallback also failed: {inner_e}")
+                return ""
+
 
     async def get_element(self, selector: str) -> Locator:
         """
@@ -116,10 +124,19 @@ class PlaywrightBrowserEngine:
                 await locator.click(timeout=config.DEFAULT_WAIT_TIME)
                 
             elif action == "fill":
-                if step.value is None:
-                    raise ValueError("Fill action requires a string value.")
-                locator = await self.get_element(step.selector)
-                await locator.fill(step.value, timeout=config.DEFAULT_WAIT_TIME)
+                if not step.value:
+                    raise ValueError("Fill action requires a non-empty string value.")
+                # 1. Wait for element to be visible before interacting
+                await self.page.wait_for_selector(
+                    step.selector, state="visible", timeout=5000
+                )
+                # 2. Focus the field and clear any pre-existing content so React/Vue/Angular
+                #    synthetic input events fire correctly on a fresh value
+                await self.page.click(step.selector)
+                await self.page.fill(step.selector, "")
+                # 3. Simulate human keystroke-by-keystroke typing (delay=30 ms) so JS
+                #    onChange/oninput handlers receive individual key events
+                await self.page.type(step.selector, step.value, delay=30)
                 
             elif action == "select":
                 if step.value is None:

@@ -60,6 +60,7 @@ Generate the input value for this field."""
             response = await self.llm.chat.completions.create(
                 model=config.LLM_MODEL,
                 temperature=0.3,  # Slight creativity for realistic mock data
+                max_tokens=config.EXECUTOR_MAX_TOKENS,
                 messages=[
                     {"role": "system", "content": EXECUTOR_FORM_PROMPT},
                     {"role": "user", "content": user_message}

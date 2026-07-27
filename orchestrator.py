@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 from langgraph.graph import StateGraph, END
 from openai import AsyncOpenAI
-from schemas import AgentState, TestStep
+from schemas import AgentState, TestStep, ActionType
 from agents.planner import PlannerAgent
 from agents.executor import ExecutorAgent
 from agents.healer import HealerAgent
@@ -62,12 +62,19 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
         )
 
         # Synthesize form data for fill actions with no value
-        if current_step.action_type.value == "fill" and not current_step.value:
+        if current_step.action_type == ActionType.FILL and not current_step.value:
             logger.info(f"No value set for fill step {current_step.step_id}. Invoking ExecutorAgent...")
             generated_value = await executor.generate_form_data(
                 step=current_step,
                 accessibility_snapshot=state.get("accessibility_snapshot")
             )
+            # Ensure we never pass an empty string to Playwright
+            if not generated_value or not generated_value.strip():
+                logger.warning(
+                    f"ExecutorAgent returned empty value for step {current_step.step_id}. "
+                    "Using fallback."
+                )
+                generated_value = executor._fallback_value(current_step)
             current_step = current_step.model_copy(update={"value": generated_value})
             steps[current_index] = current_step
 

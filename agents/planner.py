@@ -60,6 +60,7 @@ Generate the complete step-by-step test execution plan as a JSON array."""
             response = await self.llm.chat.completions.create(
                 model=config.LLM_MODEL,
                 temperature=config.LLM_TEMPERATURE,
+                max_tokens=config.PLANNER_MAX_TOKENS,
                 messages=[
                     {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
                     {"role": "user", "content": user_message}

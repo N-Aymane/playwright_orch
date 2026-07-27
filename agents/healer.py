@@ -72,6 +72,7 @@ Propose the corrected Playwright selector to locate this element."""
             response = await self.llm.chat.completions.create(
                 model=config.LLM_MODEL,
                 temperature=0.0,  # Deterministic for locator repair
+                max_tokens=config.HEALER_MAX_TOKENS,
                 messages=[
                     {"role": "system", "content": HEALER_SYSTEM_PROMPT},
                     {"role": "user", "content": user_message}
@@ -115,6 +116,7 @@ If unrelated, say "Console errors appear unrelated to step failure."
             response = await self.llm.chat.completions.create(
                 model=config.LLM_MODEL,
                 temperature=0.0,
+                max_tokens=config.CONSOLE_ANALYSIS_MAX_TOKENS,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]

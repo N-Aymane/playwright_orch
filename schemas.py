@@ -16,7 +16,7 @@ class TestStep(BaseModel):
     description: str
     action_type: ActionType
     selector: Optional[str] = None
-    selector_type: str = "css"  # css, xpath, role, text
+    selector_type: Optional[str] = "css"  # css, xpath, role, text — Optional so LLM null is tolerated
     value: Optional[str] = None
     retry_count: int = 0
     max_retries: int = 3
@@ -28,7 +28,7 @@ class AgentState(TypedDict):
     task_goal: str
     current_step_index: int
     steps: List[TestStep]
-    accessibility_snapshot: Optional[Dict[str, Any]]
+    accessibility_snapshot: Optional[str]
     last_error: Optional[str]
     console_logs: List[str]
     failed_network_requests: List[str]

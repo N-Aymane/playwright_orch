@@ -153,11 +153,19 @@ to
 Then edit:
 
 ```env
-OPENAI_API_KEY=sk-your-key-here
+OPENAI_API_KEY=sk-or-v1-your-key-here
+
+OPENAI_API_BASE=https://openrouter.ai/api/v1
 
 HEADLESS=true
 
-LLM_MODEL=gpt-4o-mini
+LLM_MODEL=openai/gpt-4.1-mini
+
+LLM_MAX_TOKENS=1024
+PLANNER_MAX_TOKENS=1024
+EXECUTOR_MAX_TOKENS=128
+HEALER_MAX_TOKENS=128
+CONSOLE_ANALYSIS_MAX_TOKENS=256
 ```
 
 ---
@@ -229,9 +237,14 @@ Optional:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENAI_API_KEY` | Required | OpenAI API key |
-| `OPENAI_API_BASE` | https://api.openai.com/v1 | OpenAI compatible endpoint |
-| `LLM_MODEL` | gpt-4o-mini | LLM model |
+| `OPENAI_API_KEY` | Required | OpenRouter or OpenAI-compatible API key |
+| `OPENAI_API_BASE` | https://openrouter.ai/api/v1 | OpenAI compatible endpoint |
+| `LLM_MODEL` | openai/gpt-4.1-mini | LLM model |
+| `LLM_MAX_TOKENS` | 1024 | Default completion cap |
+| `PLANNER_MAX_TOKENS` | 1024 | Planner output cap |
+| `EXECUTOR_MAX_TOKENS` | 128 | Executor output cap |
+| `HEALER_MAX_TOKENS` | 128 | Healer output cap |
+| `CONSOLE_ANALYSIS_MAX_TOKENS` | 256 | Console analysis output cap |
 | `LLM_TEMPERATURE` | 0.0 | Model temperature |
 | `HEADLESS` | true | Run browser headless |
 | `BROWSER_TIMEOUT` | 10000 | Browser timeout (ms) |
@@ -280,6 +293,14 @@ https://trace.playwright.dev
 ---
 
 # 🖥️ Using Local LLMs
+
+### OpenRouter
+
+```env
+OPENAI_API_BASE=https://openrouter.ai/api/v1
+OPENAI_API_KEY=sk-or-v1-your-key-here
+LLM_MODEL=openai/gpt-4.1-mini
+```
 
 ### Ollama
 
