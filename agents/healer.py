@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from openai import AsyncOpenAI
 from schemas import TestStep
 from utils.logger import get_logger
@@ -39,7 +39,7 @@ class HealerAgent:
     async def heal_selector(
         self,
         failed_step: TestStep,
-        snapshot: Optional[Dict[str, Any]],
+        snapshot: Optional[Union[str, Dict[str, Any]]],
         error: Optional[str]
     ) -> Optional[str]:
         """

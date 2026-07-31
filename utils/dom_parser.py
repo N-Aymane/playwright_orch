@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 import json
 
 def prune_accessibility_node(node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -91,10 +91,24 @@ def flatten_accessibility_tree(node: Dict[str, Any], depth: int = 0) -> List[str
         
     return lines
 
-def format_accessibility_tree(snapshot: Dict[str, Any]) -> str:
+def format_accessibility_tree(snapshot: Optional[Union[str, Dict[str, Any]]]) -> str:
     """
     Prunes the snapshot and formats it as an indented tree representation.
+    If the snapshot is a string, returns it directly (or parses it if it is a JSON dict).
     """
+    if not snapshot:
+        return "<Empty Accessibility Tree>"
+
+    if isinstance(snapshot, str):
+        try:
+            parsed = json.loads(snapshot)
+            if isinstance(parsed, dict):
+                snapshot = parsed
+            else:
+                return snapshot
+        except Exception:
+            return snapshot
+
     pruned = prune_accessibility_node(snapshot)
     if not pruned:
         return "<Empty Accessibility Tree>"

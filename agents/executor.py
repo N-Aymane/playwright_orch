@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from openai import AsyncOpenAI
 from schemas import TestStep
 from utils.logger import get_logger
@@ -35,7 +35,7 @@ class ExecutorAgent:
     async def generate_form_data(
         self,
         step: TestStep,
-        accessibility_snapshot: Optional[Dict[str, Any]] = None
+        accessibility_snapshot: Optional[Union[str, Dict[str, Any]]] = None
     ) -> str:
         """
         Calls the LLM to synthesize contextually appropriate mock data for a form fill step.

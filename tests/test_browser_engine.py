@@ -22,5 +22,38 @@ class BrowserEngineConsoleHandlingTests(unittest.TestCase):
         self.assertIn("https://example.com/app", engine.console_logs[0])
 
 
+class AccessibilityTreeFormattingTests(unittest.TestCase):
+    def test_format_accessibility_tree_handles_dict(self):
+        from utils.dom_parser import format_accessibility_tree
+        snapshot = {
+            "role": "button",
+            "name": "Submit",
+            "children": []
+        }
+        res = format_accessibility_tree(snapshot)
+        self.assertIn("<button 'Submit'>", res)
+
+    def test_format_accessibility_tree_handles_json_string(self):
+        from utils.dom_parser import format_accessibility_tree
+        import json
+        snapshot = json.dumps({
+            "role": "textbox",
+            "name": "Username",
+            "children": []
+        })
+        res = format_accessibility_tree(snapshot)
+        self.assertIn("<textbox 'Username'>", res)
+
+    def test_format_accessibility_tree_handles_plain_string(self):
+        from utils.dom_parser import format_accessibility_tree
+        snapshot = "Plain text accessibility info"
+        res = format_accessibility_tree(snapshot)
+        self.assertEqual(res, "Plain text accessibility info")
+
+    def test_format_accessibility_tree_handles_none(self):
+        from utils.dom_parser import format_accessibility_tree
+        self.assertEqual(format_accessibility_tree(None), "<Empty Accessibility Tree>")
+
+
 if __name__ == "__main__":
     unittest.main()

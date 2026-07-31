@@ -47,7 +47,14 @@ class PlaywrightBrowserEngine:
 
     def _handle_console(self, msg):
         if msg.type in ["error", "warning"]:
-            log_str = f"[{msg.type}] {msg.text} ({msg.location.get('url', 'unknown')}:{msg.location.get('lineNumber', 0)})"
+            location = msg.location
+            if isinstance(location, dict):
+                url = location.get("url", "unknown")
+                line = location.get("lineNumber", 0)
+            else:
+                url = str(location) if location else "unknown"
+                line = 0
+            log_str = f"[{msg.type}] {msg.text} ({url}:{line})"
             self.console_logs.append(log_str)
             logger.warning(f"Browser Console Intercepted: {log_str}")
 
@@ -126,17 +133,16 @@ class PlaywrightBrowserEngine:
             elif action == "fill":
                 if not step.value:
                     raise ValueError("Fill action requires a non-empty string value.")
+                locator = await self.get_element(step.selector)
                 # 1. Wait for element to be visible before interacting
-                await self.page.wait_for_selector(
-                    step.selector, state="visible", timeout=5000
-                )
+                await locator.wait_for(state="visible", timeout=5000)
                 # 2. Focus the field and clear any pre-existing content so React/Vue/Angular
                 #    synthetic input events fire correctly on a fresh value
-                await self.page.click(step.selector)
-                await self.page.fill(step.selector, "")
+                await locator.click()
+                await locator.fill("")
                 # 3. Simulate human keystroke-by-keystroke typing (delay=30 ms) so JS
                 #    onChange/oninput handlers receive individual key events
-                await self.page.type(step.selector, step.value, delay=30)
+                await locator.type(step.value, delay=30)
                 
             elif action == "select":
                 if step.value is None:

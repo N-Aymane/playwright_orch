@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Dict, Any, TypedDict
+from typing import List, Optional, Dict, Any, TypedDict, Union
 from pydantic import BaseModel, Field
 
 class ActionType(str, Enum):
@@ -28,7 +28,7 @@ class AgentState(TypedDict):
     task_goal: str
     current_step_index: int
     steps: List[TestStep]
-    accessibility_snapshot: Optional[str]
+    accessibility_snapshot: Optional[Union[str, Dict[str, Any]]]
     last_error: Optional[str]
     console_logs: List[str]
     failed_network_requests: List[str]

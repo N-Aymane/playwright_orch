@@ -202,6 +202,15 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
         return "execute"
 
     # -------------------------------------------------------------------
+    # CONDITIONAL ROUTER: Determines next node after heal_node
+    # -------------------------------------------------------------------
+    def route_after_healing(state: AgentState) -> str:
+        if state.get("is_complete"):
+            logger.info("[ORCHESTRATOR] Healing complete or aborted. Routing to END.")
+            return END
+        return "execute"
+
+    # -------------------------------------------------------------------
     # BUILD THE GRAPH
     # -------------------------------------------------------------------
     graph = StateGraph(AgentState)
@@ -223,7 +232,14 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
         }
     )
 
-    graph.add_edge("heal", "execute")
+    graph.add_conditional_edges(
+        "heal",
+        route_after_healing,
+        {
+            "execute": "execute",
+            END: END,
+        }
+    )
 
     compiled = graph.compile()
     logger.info("Orchestrator graph compiled successfully.")

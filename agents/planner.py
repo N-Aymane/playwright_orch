@@ -1,6 +1,6 @@
 import json
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from openai import AsyncOpenAI
 from schemas import TestStep, ActionType, AgentState
 from utils.logger import get_logger
@@ -39,7 +39,7 @@ class PlannerAgent:
         self.llm = llm_client
         logger.info("PlannerAgent initialized.")
 
-    async def generate_plan(self, url: str, task_goal: str, accessibility_snapshot: Optional[Dict[str, Any]] = None) -> List[TestStep]:
+    async def generate_plan(self, url: str, task_goal: str, accessibility_snapshot: Optional[Union[str, Dict[str, Any]]] = None) -> List[TestStep]:
         """
         Calls the LLM with the target URL, goal, and (optionally) the page accessibility tree
         to generate a list of TestStep objects representing the full test plan.
