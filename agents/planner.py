@@ -30,6 +30,9 @@ IMPORTANT RULES:
 - For form fill steps where you don't know the value (e.g., email, password), set "value" to null — the Executor Agent will synthesize it.
 - Prefer role-based Playwright locator expressions for robustness (e.g., page.get_by_role('button', name='Sign Up')).
 - For CSS selectors, use semantic attributes: #id, [name="field"], [type="email"] over brittle positional selectors.
+- For "go to cart" or "open cart" steps, always target the unique header cart control, not a product link. On Sauce Demo, prefer the stable cart selector page.locator('[data-test="shopping-cart-link"]') or an equivalent unique id/class selector.
+- Never use a product title or product image link as a substitute for the cart navigation step.
+- If a role-based locator resolves to multiple elements, choose a selector that is unique in the current page context, ideally using a stable data-test or id attribute.
 - Always end with at least one ASSERT_TEXT step to verify the outcome (e.g., success message, next page heading).
 - Output ONLY the raw JSON array. No explanation, no markdown fences, no extra text.
 """
