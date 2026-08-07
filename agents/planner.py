@@ -35,8 +35,11 @@ IMPORTANT RULES:
 - If a role-based locator resolves to multiple elements, choose a selector that is unique in the current page context, ideally using a stable data-test or id attribute.
 - Always end with at least one ASSERT_TEXT step to verify the outcome (e.g., success message, next page heading).
 - Output ONLY the raw JSON array. No explanation, no markdown fences, no extra text.
-"""
 
+ADDITIONAL AGENT STABILITY RULES:
+- If a cookie/privacy consent banner or overlay exists on page load, add a step to click the accept button (e.g., text='I Accept' or button[id*='accept']) BEFORE executing main page interactions.
+- When outputting role-based selectors, prefer raw locator strings like "text=I Accept" or standard CSS/XPath rather than code strings with method signatures that fail Playwright selector parsing.
+"""
 class PlannerAgent:
     def __init__(self, llm_client: AsyncOpenAI):
         self.llm = llm_client
