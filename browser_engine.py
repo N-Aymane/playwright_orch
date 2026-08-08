@@ -15,6 +15,7 @@ class PlaywrightBrowserEngine:
         self.browser: Optional[Browser] = None
         self.context: Optional[Any] = None
         self.page: Optional[Page] = None
+        self.initial_url: Optional[str] = None
         self.console_logs: List[str] = []
         self.network_errors: List[str] = []
 
@@ -66,6 +67,8 @@ class PlaywrightBrowserEngine:
 
     async def navigate(self, url: str):
         logger.info(f"Navigating browser to: {url}")
+        if not self.initial_url:
+            self.initial_url = url
         await self.page.goto(url, wait_until="load", timeout=config.BROWSER_TIMEOUT)
 
     async def get_accessibility_tree(self) -> str:
@@ -88,7 +91,7 @@ class PlaywrightBrowserEngine:
                 return ""
 
 
-    async def get_element(self, selector: str) -> Locator:
+    async def resolve_locator(self, selector: str) -> Locator:
         """
         Resolves a selector string into a Playwright Locator.
         Supports both standard CSS/XPath selectors and evaluated Python Playwright expressions.
@@ -112,6 +115,25 @@ class PlaywrightBrowserEngine:
             logger.debug(f"Resolving standard locator selector: {selector}")
             return self.page.locator(selector)
 
+    async def get_element(self, selector: str) -> Locator:
+        """Backward-compatible alias for locator resolution."""
+        return await self.resolve_locator(selector)
+
+    async def _force_click_with_label_fallback(self, locator: Locator, selector: Optional[str] = None) -> None:
+        """Try a forced click on the locator, then fall back to a related label."""
+        try:
+            await locator.click(force=True, timeout=3000)
+            return
+        except Exception:
+            if selector and self.page:
+                try:
+                    await locator.locator("xpath=ancestor::label[1]").click(force=True, timeout=3000)
+                    return
+                except Exception:
+                    pass
+
+            raise
+
     async def execute_action(self, step: TestStep) -> bool:
         """
         Executes a TestStep using the browser engine.
@@ -122,13 +144,19 @@ class PlaywrightBrowserEngine:
             action = step.action_type.value.lower()
             
             if action == "navigate":
-                if not step.value:
+                target_url = step.value or step.selector
+                if not target_url or not target_url.startswith("http"):
+                    target_url = self.initial_url
+                if not target_url:
                     raise ValueError("Navigation action requires a URL value.")
-                await self.navigate(step.value)
+                await self.page.goto(target_url, wait_until="domcontentloaded", timeout=15000)
             
             elif action == "click":
-                locator = await self.get_element(step.selector)
-                await locator.click(timeout=config.DEFAULT_WAIT_TIME)
+                locator = await self.resolve_locator(step.selector)
+                try:
+                    await locator.click(timeout=3000)
+                except Exception:
+                    await self._force_click_with_label_fallback(locator, step.selector)
                 
             elif action == "fill":
                 if not step.value:
@@ -151,8 +179,14 @@ class PlaywrightBrowserEngine:
                 await locator.select_option(step.value, timeout=config.DEFAULT_WAIT_TIME)
                 
             elif action == "check":
-                locator = await self.get_element(step.selector)
-                await locator.check(timeout=config.DEFAULT_WAIT_TIME)
+                locator = await self.resolve_locator(step.selector)
+                try:
+                    await locator.check(timeout=3000)
+                except Exception:
+                    try:
+                        await locator.check(force=True, timeout=3000)
+                    except Exception:
+                        await self._force_click_with_label_fallback(locator, step.selector)
                 
             elif action == "wait_for_selector":
                 locator = await self.get_element(step.selector)
