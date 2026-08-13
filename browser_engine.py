@@ -65,7 +65,25 @@ class PlaywrightBrowserEngine:
             self.network_errors.append(error_str)
             logger.error(f"Browser Network Error Intercepted: {error_str}")
 
+    async def auto_suppress_popups(self):
+        """Silently detects and dismisses common overlays/cookie banners."""
+        common_selectors = [
+            "text='Accepter tout'", "text='Tout accepter'", "text='Autoriser tous les cookies'",
+            "text='I Accept'", "text='Accept All'", "#onetrust-accept-btn-handler",
+            "button[id*='cookie']", "button[class*='cookie']", "[aria-label*='cookie']"
+        ]
+        for selector in common_selectors:
+            try:
+                locator = self.page.locator(selector).first
+                if await locator.is_visible(timeout=300):
+                    await locator.click(force=True, timeout=1000)
+                    await self.page.wait_for_timeout(300)
+                    break
+            except Exception:
+                continue
+
     async def navigate(self, url: str):
+        await self.auto_suppress_popups()
         logger.info(f"Navigating browser to: {url}")
         if not self.initial_url:
             self.initial_url = url
@@ -79,6 +97,7 @@ class PlaywrightBrowserEngine:
         """
         if not self.page:
             return ""
+        await self.auto_suppress_popups()
         try:
             # Modern Playwright ARIA snapshot (replaces deprecated page.accessibility)
             return await self.page.locator("body").aria_snapshot()
@@ -139,6 +158,7 @@ class PlaywrightBrowserEngine:
         Executes a TestStep using the browser engine.
         Returns True on success, False if an error occurred.
         """
+        await self.auto_suppress_popups()
         logger.info(f"Executing step {step.step_id}: {step.description} (Action: {step.action_type})")
         try:
             action = step.action_type.value.lower()

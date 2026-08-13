@@ -61,9 +61,9 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             f"[Step {current_step.step_id}/{len(steps)}]: {current_step.description}"
         )
 
-        # Synthesize form data for fill actions with no value
-        if current_step.action_type == ActionType.FILL and not current_step.value:
-            logger.info(f"No value set for fill step {current_step.step_id}. Invoking ExecutorAgent...")
+        # Synthesize form data for fill or select actions with no value
+        if current_step.action_type in (ActionType.FILL, ActionType.SELECT) and not current_step.value:
+            logger.info(f"No value set for step {current_step.step_id}. Invoking ExecutorAgent...")
             generated_value = await executor.generate_form_data(
                 step=current_step,
                 accessibility_snapshot=state.get("accessibility_snapshot")
@@ -90,7 +90,7 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             next_index = current_index + 1
             is_complete = next_index >= len(steps)
 
-            logger.info(f"Step {current_step.step_id} PASSED ✓")
+            logger.info(f"Step {current_step.step_id} PASSED")
 
             return {
                 **state,
@@ -106,7 +106,7 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             current_step = current_step.model_copy(update={"status": "failed"})
             steps[current_index] = current_step
 
-            logger.warning(f"Step {current_step.step_id} FAILED ✗ — Error: {current_step.error_message}")
+            logger.warning(f"Step {current_step.step_id} FAILED - Error: {current_step.error_message}")
 
             return {
                 **state,

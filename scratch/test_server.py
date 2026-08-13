@@ -287,12 +287,12 @@ class TestServerHandler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     server = HTTPServer((HOST, PORT), TestServerHandler)
     print(f"\n{'='*60}")
-    print(f"  🚀 Test Server running at http://{HOST}:{PORT}")
+    print(f"  [STARTING] Test Server running at http://{HOST}:{PORT}")
     print(f"{'='*60}")
     print(f"  Endpoints:")
-    print(f"    /          → Registration Form (Version A — clean)")
-    print(f"    /mutated   → Registration Form (Version B — mutated IDs)")
-    print(f"    /success   → Success confirmation page")
+    print(f"    /          -> Registration Form (Version A - clean)")
+    print(f"    /mutated   -> Registration Form (Version B - mutated IDs)")
+    print(f"    /success   -> Success confirmation page")
     print(f"\n  Usage:")
     print(f"    python main.py --url \"http://{HOST}:{PORT}\" \\")
     print(f"      --goal \"Test user registration form with valid inputs\"")
@@ -301,4 +301,4 @@ if __name__ == "__main__":
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n✅ Test server stopped.")
+        print("\nTest server stopped.")

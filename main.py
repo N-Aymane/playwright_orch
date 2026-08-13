@@ -51,7 +51,7 @@ async def run_test(
     """
     console.print(Panel(
         Text.from_markup(
-            f"[bold cyan]🤖 Autonomous Web Testing Framework[/bold cyan]\n\n"
+            f"[bold cyan]Autonomous Web Testing Framework[/bold cyan]\n\n"
             f"[white]Target URL:[/white] [yellow]{url}[/yellow]\n"
             f"[white]Goal:[/white]       [green]{goal}[/green]\n"
             f"[white]LLM Model:[/white]  [blue]{config.LLM_MODEL}[/blue]\n"
@@ -63,7 +63,7 @@ async def run_test(
 
     # --- Validate API Key ---
     if not config.OPENAI_API_KEY:
-        console.print("[bold red]❌ ERROR: OPENAI_API_KEY is not set.[/bold red]")
+        console.print("[bold red]ERROR: OPENAI_API_KEY is not set.[/bold red]")
         console.print("Set it in a [yellow].env[/yellow] file or as an environment variable:")
         console.print("  [dim]OPENAI_API_KEY=sk-...[/dim]")
         sys.exit(1)
@@ -97,7 +97,7 @@ async def run_test(
         # --- Build & Run the Orchestrator Graph ---
         graph = create_orchestrator_graph(browser_engine, llm_client)
         logger.info("Starting agent execution graph...")
-        console.print("\n[bold]▶ Launching Multi-Agent Execution Graph...[/bold]\n")
+        console.print("\n[bold]> Launching Multi-Agent Execution Graph...[/bold]\n")
 
         async for state_update in graph.astream(initial_state):
             # Log incremental state updates from graph nodes
@@ -110,11 +110,11 @@ async def run_test(
                         last_executed = steps[step_index - 1] if step_index > 0 else None
                         if last_executed:
                             status_icon = {
-                                "passed": "✅",
-                                "failed": "❌",
-                                "healed": "🔧",
-                                "pending": "⏳"
-                            }.get(last_executed.status, "•")
+                                "passed": "[PASS]",
+                                "failed": "[FAIL]",
+                                "healed": "[HEAL]",
+                                "pending": "[PEND]"
+                            }.get(last_executed.status, "-")
                             console.print(
                                 f"  {status_icon} [{node_name.upper()}] "
                                 f"Step {last_executed.step_id}/{step_count}: "
@@ -123,10 +123,10 @@ async def run_test(
                 final_state = node_state
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]⚠ Test run interrupted by user.[/yellow]")
+         console.print("\n[yellow]Test run interrupted by user.[/yellow]")
     except Exception as e:
-        logger.error(f"Fatal error during graph execution: {e}")
-        console.print(f"\n[bold red]❌ Fatal error: {e}[/bold red]")
+         logger.error(f"Fatal error during graph execution: {e}")
+         console.print(f"\n[bold red]Fatal error: {e}[/bold red]")
     finally:
         # --- Always stop browser and save trace ---
         await browser_engine.stop(trace_path=trace_path)
@@ -155,7 +155,7 @@ async def run_test(
     failed = sum(1 for s in steps if s.status == "failed")
 
     result_color = "green" if test_passed else "red"
-    result_label = "✅ PASSED" if test_passed else "❌ FAILED"
+    result_label = "PASSED" if test_passed else "FAILED"
 
     console.print(Panel(
         Text.from_markup(
@@ -195,10 +195,10 @@ async def run_test(
             output_path=json_report_path
         )
         console.print(f"\n[bold green]Reports generated successfully![/bold green]")
-        console.print(f"  → Open [link=file://{os.path.abspath(report_path)}]{report_path}[/link] in your browser to view the full test report.")
-        console.print(f"  → Load [bold]{trace_path}[/bold] at [link=https://trace.playwright.dev]trace.playwright.dev[/link] to inspect execution traces.")
+        console.print(f"  -> Open [link=file://{os.path.abspath(report_path)}]{report_path}[/link] in your browser to view the full test report.")
+        console.print(f"  -> Load [bold]{trace_path}[/bold] at [link=https://trace.playwright.dev]trace.playwright.dev[/link] to inspect execution traces.")
     else:
-        console.print("[yellow]⚠ No steps were executed — no reports generated.[/yellow]")
+        console.print("[yellow]No steps were executed — no reports generated.[/yellow]")
 
 
 def main():

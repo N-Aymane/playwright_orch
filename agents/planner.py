@@ -25,20 +25,16 @@ Your output MUST be a valid JSON array of TestStep objects matching exactly this
   }
 ]
 
-IMPORTANT RULES:
-- Always start with a NAVIGATE step to the target URL.
-- For form fill steps where you don't know the value (e.g., email, password), set "value" to null — the Executor Agent will synthesize it.
-- Prefer role-based Playwright locator expressions for robustness (e.g., page.get_by_role('button', name='Sign Up')).
-- For CSS selectors, use semantic attributes: #id, [name="field"], [type="email"] over brittle positional selectors.
-- For "go to cart" or "open cart" steps, always target the unique header cart control, not a product link. On Sauce Demo, prefer the stable cart selector page.locator('[data-test="shopping-cart-link"]') or an equivalent unique id/class selector.
-- Never use a product title or product image link as a substitute for the cart navigation step.
-- If a role-based locator resolves to multiple elements, choose a selector that is unique in the current page context, ideally using a stable data-test or id attribute.
-- Always end with at least one ASSERT_TEXT step to verify the outcome (e.g., success message, next page heading).
-- Output ONLY the raw JSON array. No explanation, no markdown fences, no extra text.
+AUTONOMOUS EXECUTION RULES:
+1. Focus ONLY on the user's primary goal. Ignore cookie popups, consent banners, or privacy overlays (the environment handles these automatically).
+2. For any form field where specific data wasn't provided in the prompt, set value: null — the Executor Agent will synthesize valid mock data automatically.
+3. Dynamically adapt selector matching and text assertions to the primary language of the target website (e.g., French for French sites).
+4. Maintain standard JSON array structure for TestStep outputs.
 
-ADDITIONAL AGENT STABILITY RULES:
-- If a cookie/privacy consent banner or overlay exists on page load, add a step to click the accept button (e.g., text='I Accept' or button[id*='accept']) BEFORE executing main page interactions.
-- When outputting role-based selectors, prefer raw locator strings like "text=I Accept" or standard CSS/XPath rather than code strings with method signatures that fail Playwright selector parsing.
+IMPORTANT GUIDELINES:
+- Always start with a NAVIGATE step to the target URL.
+- Always end with at least one ASSERT_TEXT step to verify the outcome.
+- Output ONLY the raw JSON array. No explanation, no markdown fences, no extra text.
 """
 class PlannerAgent:
     def __init__(self, llm_client: AsyncOpenAI):
