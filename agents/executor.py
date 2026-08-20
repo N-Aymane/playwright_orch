@@ -51,6 +51,9 @@ Generate the input/selection value for this field."""
         generated_value = response.choices[0].message.content.strip()
         # Strip any accidental surrounding quotes
         generated_value = generated_value.strip('"').strip("'")
+        if "test.user@example.com" in generated_value:
+            import time
+            generated_value = f"test.user.{int(time.time())}@example.com"
         logger.info(f"Synthesized value: '{generated_value}'")
         return generated_value
 
@@ -87,7 +90,8 @@ Generate the input/selection value for this field."""
         context = desc_lower + " " + sel_lower
 
         if "email" in context:
-            return "test.user@example.com"
+            import time
+            return f"test.user.{int(time.time())}@example.com"
         elif "password" in context:
             return "SecureP@ss123!"
         elif "phone" in context or "tel" in context:

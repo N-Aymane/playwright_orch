@@ -75,61 +75,57 @@ async def run_test(
     )
 
     # --- Initialize Browser Engine ---
-    browser_engine = PlaywrightBrowserEngine()
-    await browser_engine.initialize()
-
-    # --- Build Initial Agent State ---
-    initial_state = {
-        "url": url,
-        "task_goal": goal,
-        "current_step_index": 0,
-        "steps": [],
-        "accessibility_snapshot": None,
-        "last_error": None,
-        "console_logs": [],
-        "failed_network_requests": [],
-        "is_complete": False,
-        "test_passed": True,
-    }
-
+    # Use async context manager for safe startup/teardown of Playwright
     final_state = None
-    try:
-        # --- Build & Run the Orchestrator Graph ---
-        graph = create_orchestrator_graph(browser_engine, llm_client)
-        logger.info("Starting agent execution graph...")
-        console.print("\n[bold]> Launching Multi-Agent Execution Graph...[/bold]\n")
+    async with PlaywrightBrowserEngine() as browser_engine:
+        # --- Build Initial Agent State ---
+        initial_state = {
+            "url": url,
+            "task_goal": goal,
+            "current_step_index": 0,
+            "steps": [],
+            "accessibility_snapshot": None,
+            "last_error": None,
+            "console_logs": [],
+            "failed_network_requests": [],
+            "is_complete": False,
+            "test_passed": True,
+        }
 
-        async for state_update in graph.astream(initial_state):
-            # Log incremental state updates from graph nodes
-            for node_name, node_state in state_update.items():
-                if isinstance(node_state, dict):
-                    step_index = node_state.get("current_step_index", 0)
-                    steps = node_state.get("steps", [])
-                    step_count = len(steps)
-                    if steps and step_index > 0:
-                        last_executed = steps[step_index - 1] if step_index > 0 else None
-                        if last_executed:
-                            status_icon = {
-                                "passed": "[PASS]",
-                                "failed": "[FAIL]",
-                                "healed": "[HEAL]",
-                                "pending": "[PEND]"
-                            }.get(last_executed.status, "-")
-                            console.print(
-                                f"  {status_icon} [{node_name.upper()}] "
-                                f"Step {last_executed.step_id}/{step_count}: "
-                                f"{last_executed.description[:70]}"
-                            )
+        try:
+            # --- Build & Run the Orchestrator Graph ---
+            graph = create_orchestrator_graph(browser_engine, llm_client)
+            logger.info("Starting agent execution graph...")
+            console.print("\n[bold]> Launching Multi-Agent Execution Graph...[/bold]\n")
+
+            async for state_update in graph.astream(initial_state):
+                # Log incremental state updates from graph nodes
+                for node_name, node_state in state_update.items():
+                    if isinstance(node_state, dict):
+                        step_index = node_state.get("current_step_index", 0)
+                        steps = node_state.get("steps", [])
+                        step_count = len(steps)
+                        if steps and step_index > 0:
+                            last_executed = steps[step_index - 1] if step_index > 0 else None
+                            if last_executed:
+                                status_icon = {
+                                    "passed": "[PASS]",
+                                    "failed": "[FAIL]",
+                                    "healed": "[HEAL]",
+                                    "pending": "[PEND]"
+                                }.get(last_executed.status, "-")
+                                console.print(
+                                    f"  {status_icon} [{node_name.upper()}] "
+                                    f"Step {last_executed.step_id}/{step_count}: "
+                                    f"{last_executed.description[:70]}"
+                                )
                 final_state = node_state
 
-    except KeyboardInterrupt:
-         console.print("\n[yellow]Test run interrupted by user.[/yellow]")
-    except Exception as e:
-         logger.error(f"Fatal error during graph execution: {e}")
-         console.print(f"\n[bold red]Fatal error: {e}[/bold red]")
-    finally:
-        # --- Always stop browser and save trace ---
-        await browser_engine.stop(trace_path=trace_path)
+        except KeyboardInterrupt:
+             console.print("\n[yellow]Test run interrupted by user.[/yellow]")
+        except Exception as e:
+             logger.error(f"Fatal error during graph execution: {e}")
+             console.print(f"\n[bold red]Fatal error: {e}[/bold red]")
 
     # --- Collect final state ---
     if final_state is None:

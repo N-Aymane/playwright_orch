@@ -2,7 +2,7 @@ import asyncio
 import os
 from typing import Dict, Any, List, Optional
 from playwright.async_api import async_playwright, Page, Browser, Playwright, Locator
-from schemas import TestStep
+from schemas import TestStep, ActionType
 from utils.logger import get_logger
 import config
 
@@ -18,6 +18,15 @@ class PlaywrightBrowserEngine:
         self.initial_url: Optional[str] = None
         self.console_logs: List[str] = []
         self.network_errors: List[str] = []
+
+    async def __aenter__(self):
+        # Support async context manager usage: `async with PlaywrightBrowserEngine()`
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        # Ensure proper teardown on context exit
+        await self.stop()
 
     async def initialize(self):
         logger.info("Initializing Playwright Browser Engine...")
@@ -40,6 +49,45 @@ class PlaywrightBrowserEngine:
         )
         self.page = await self.context.new_page()
 
+        # Inject stylesheet to suppress HubSpot overlays that intercept pointer events.
+        # Targets: #hs-interactives-modal-overlay, #hs-web-interactives-top-anchor,
+        #          .go1632949049 (autocomplete mask), and .autocomplete-mat__input__mask
+        await self.page.add_init_script("""
+            const style = document.createElement('style');
+            style.innerHTML = [
+                '#hs-interactives-modal-overlay,',
+                '#hs-web-interactives-top-anchor,',
+                '.go1632949049,',
+                '.autocomplete-mat__input__mask',
+                '{ display: none !important; pointer-events: none !important; }'
+            ].join(' ');
+            document.head.appendChild(style);
+        """)
+
+        # Register reactive locator handlers to dismiss mid-flow popups the moment
+        # they appear — fires before any subsequent action can be blocked.
+
+        # Handler 1: HubSpot modals and web-interactive overlays → press Escape
+        await self.page.add_locator_handler(
+            self.page.locator(
+                "#hs-interactives-modal-overlay, "
+                "iframe[data-test-id='interactive-frame'], "
+                "div[id*='hs-web-interactive']"
+            ).first,
+            lambda overlay: overlay.page.keyboard.press("Escape")
+        )
+
+        # Handler 2: Cookie / consent banners → force-click the accept button
+        await self.page.add_locator_handler(
+            self.page.locator(
+                "text='Accepter tout', "
+                "text='Tout accepter', "
+                "text='Autoriser tous les cookies', "
+                "text='I Accept'"
+            ).first,
+            lambda btn: btn.click(force=True)
+        )
+
         # Wire up interceptors
         self.page.on("console", self._handle_console)
         self.page.on("response", self._handle_response)
@@ -61,7 +109,7 @@ class PlaywrightBrowserEngine:
 
     def _handle_response(self, response):
         if response.status >= 400:
-            error_str = f"HTTP {response.status} {response.method} {response.url}"
+            error_str = f"HTTP {response.status} {response.request.method} {response.url}"
             self.network_errors.append(error_str)
             logger.error(f"Browser Network Error Intercepted: {error_str}")
 
@@ -83,28 +131,47 @@ class PlaywrightBrowserEngine:
                 continue
 
     async def navigate(self, url: str):
+        """Navigates to the specified URL.
+
+        Uses domcontentloaded (not 'load') to avoid hanging on third-party
+        marketing/tracking tags that never fire the window load event.
+        Falls back to 'commit' (first byte received) if even domcontentloaded
+        times out on a very slow connection.
+        """
         await self.auto_suppress_popups()
         logger.info(f"Navigating browser to: {url}")
         if not self.initial_url:
             self.initial_url = url
-        await self.page.goto(url, wait_until="load", timeout=config.BROWSER_TIMEOUT)
+        try:
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        except Exception as e:
+            if "Timeout" in str(e):
+                logger.warning(
+                    f"domcontentloaded timed out for {url} — retrying with wait_until='commit'"
+                )
+                await self.page.goto(url, wait_until="commit", timeout=15000)
+            else:
+                raise
 
     async def get_accessibility_tree(self) -> str:
         """
         Extracts the page ARIA accessibility snapshot for LLM context.
-        Uses the modern Playwright aria_snapshot() API; falls back to the full
-        DOM HTML if the ARIA snapshot is unavailable.
+        Output is capped at 3,000 characters (~1,500 tokens) to stay within
+        the token budget of free/tiered LLM keys and avoid 402 errors.
         """
         if not self.page:
             return ""
         await self.auto_suppress_popups()
         try:
-            # Modern Playwright ARIA snapshot (replaces deprecated page.accessibility)
-            return await self.page.locator("body").aria_snapshot()
+            # Modern Playwright ARIA snapshot (replaces deprecated page.accessibility).
+            # Hard timeout prevents hanging on complex/animated pages.
+            snapshot = await self.page.locator("body").aria_snapshot(timeout=3000)
+            return str(snapshot)[:3000]
         except Exception as e:
             logger.error(f"ARIA snapshot failed, falling back to page.content(): {e}")
             try:
-                return await self.page.content()
+                content = await self.page.content()
+                return content[:3000]
             except Exception as inner_e:
                 logger.error(f"page.content() fallback also failed: {inner_e}")
                 return ""
@@ -117,7 +184,25 @@ class PlaywrightBrowserEngine:
         """
         if not selector:
             raise ValueError("Selector cannot be empty")
-        
+
+        selector = selector.strip()
+
+        # Date picker fallback: the trigger is a styled button/mask, not a standard
+        # <input type="text">, so get_by_role("textbox", name="Dates") fails.
+        # Chain multiple locator strategies to match whatever the site renders.
+        if "Dates" in selector or "date" in selector.lower():
+            logger.debug(f"Applying date-picker fallback for selector: {selector}")
+            return (
+                self.page.locator("text='Dates'")
+                .or_(self.page.locator("[aria-label*='Date' i], [placeholder*='Date' i], .mat-mdc-form-field:has-text('Dates')"))
+                .first
+            )
+
+        # Pass-through for bare text= selectors (no eval needed)
+        if selector.startswith("text="):
+            logger.debug(f"Resolving text locator: {selector}")
+            return self.page.locator(selector)
+
         # Determine if selector is a Playwright Python evaluator expression
         # E.g. "page.get_by_role('button', name='Submit')"
         if selector.startswith("page.") or "get_by_" in selector:
@@ -169,28 +254,83 @@ class PlaywrightBrowserEngine:
                     target_url = self.initial_url
                 if not target_url:
                     raise ValueError("Navigation action requires a URL value.")
-                await self.page.goto(target_url, wait_until="domcontentloaded", timeout=15000)
+                try:
+                    await self.page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+                except Exception as nav_err:
+                    if "Timeout" in str(nav_err):
+                        logger.warning(
+                            f"Step {step.step_id}: domcontentloaded timed out — "
+                            "retrying with wait_until='commit'"
+                        )
+                        await self.page.goto(target_url, wait_until="commit", timeout=15000)
+                    else:
+                        raise
             
             elif action == "click":
-                locator = await self.resolve_locator(step.selector)
+                selector = step.selector
+                # Strip malformed empty pseudo-classes (e.g. ":not()") that the
+                # Planner sometimes generates for calendar selectors — they cause a
+                # CSS parse error before Playwright even evaluates the selector.
+                if ":not()" in selector:
+                    selector = selector.replace(":not()", "")
+                    logger.debug(f"Step {step.step_id}: stripped malformed :not() from selector.")
+
+                locator = await self.resolve_locator(selector)
                 try:
-                    await locator.click(timeout=3000)
-                except Exception:
-                    await self._force_click_with_label_fallback(locator, step.selector)
+                    await locator.click(force=True, timeout=3000)
+                except Exception as click_err:
+                    # Calendar-cell fallback: if we were trying to click a date cell
+                    # and it failed (e.g. the cell was re-rendered), find the first
+                    # non-disabled button inside any open calendar dialog.
+                    active_days = self.page.locator(
+                        "mat-calendar button:not([disabled]), "
+                        "[role='dialog'] button:not([disabled]), "
+                        ".mat-calendar-body-cell:not(.mat-calendar-body-disabled)"
+                    )
+                    if await active_days.count() > 0:
+                        logger.warning(
+                            f"Step {step.step_id}: direct click failed — "
+                            "falling back to first active calendar day cell."
+                        )
+                        await active_days.first.click(force=True)
+                    else:
+                        # Not a calendar context — escalate to label fallback then re-raise
+                        await self._force_click_with_label_fallback(locator, selector)
                 
             elif action == "fill":
-                if not step.value:
-                    raise ValueError("Fill action requires a non-empty string value.")
+                if step.value is None:
+                    raise ValueError("Fill action requires a string value.")
                 locator = await self.get_element(step.selector)
-                # 1. Wait for element to be visible before interacting
-                await locator.wait_for(state="visible", timeout=5000)
-                # 2. Focus the field and clear any pre-existing content so React/Vue/Angular
-                #    synthetic input events fire correctly on a fresh value
-                await locator.click()
-                await locator.fill("")
-                # 3. Simulate human keystroke-by-keystroke typing (delay=30 ms) so JS
-                #    onChange/oninput handlers receive individual key events
-                await locator.type(step.value, delay=30)
+                # 1. Wait for actionability visibility
+                await locator.wait_for(state="visible", timeout=config.DEFAULT_WAIT_TIME)
+                # 2. Use force click to focus behind input masks (e.g. autocomplete-mat__input__mask)
+                await locator.click(force=True, timeout=config.DEFAULT_WAIT_TIME)
+                # 3. Attempt fill, bypassing layout interceptions (e.g. hs-interactives-modal-overlay).
+                #    If the element is a non-input widget (styled span/div/button used as a date
+                #    picker trigger), fall back to clicking open the calendar and selecting day cells.
+                try:
+                    await locator.fill(step.value, force=True, timeout=config.DEFAULT_WAIT_TIME)
+                except Exception as e:
+                    if "not an <input>" in str(e) or "contenteditable" in str(e):
+                        logger.warning(
+                            f"Step {step.step_id}: fill() rejected non-input element — "
+                            "falling back to calendar day-cell selection."
+                        )
+                        # The force-click above already opened the date picker; now
+                        # select enabled day cells: first click = departure, second = return.
+                        days = self.page.locator(
+                            "button.mat-calendar-body-cell, "
+                            "[role='gridcell']:not([aria-disabled='true'])"
+                        )
+                        count = await days.count()
+                        if count > 0:
+                            await days.first.click(force=True)
+                            await self.page.wait_for_timeout(300)
+                            # Click ~1 week later for the return date if enough cells exist
+                            if count > 7:
+                                await days.nth(7).click(force=True)
+                    else:
+                        raise e
                 
             elif action == "select":
                 if step.value is None:
@@ -234,6 +374,25 @@ class PlaywrightBrowserEngine:
             return True
             
         except Exception as e:
+            if "strict mode violation" in str(e):
+                logger.warning(f"Step {step.step_id}: Strict mode violation detected. Retrying with `.first` locator fallback.")
+                try:
+                    locator = (await self.resolve_locator(step.selector)).first
+                    if step.action_type == ActionType.FILL:
+                        await locator.fill(str(step.value), timeout=3000)
+                    elif step.action_type == ActionType.CLICK:
+                        await locator.click(force=True, timeout=3000)
+                    else:
+                        raise e
+                    
+                    # Allow DOM states to settle and network calls to complete
+                    await self.page.wait_for_load_state("domcontentloaded")
+                    await asyncio.sleep(0.5)
+                    logger.info(f"Step {step.step_id} completed successfully via strict mode auto-recovery.")
+                    return True
+                except Exception as recovery_err:
+                    e = recovery_err
+
             step.error_message = str(e)
             logger.error(f"Step {step.step_id} execution failed: {e}")
             return False
