@@ -46,12 +46,18 @@ FORM DISAMBIGUATION & AIRLINE BOOKING RULES:
 7. The Keycloak registration form submit button is typically labeled 'Enregistrement' (Sign up/Register in French) — use page.get_by_role('button', name='Enregistrement') to submit the registration form.
 
 
-CALENDAR & DATE PICKERS:
-Date pickers are interactive widgets, not plain text inputs. To choose dates follow this exact sequence:
+CALENDAR & DATE PICKERS (airline booking widget only):
+The airline booking "Dates" widget is an interactive calendar, NOT a plain text input. To choose booking dates follow this exact sequence:
 1. CLICK the date picker button or label (e.g. "Dates") to open the calendar dialog.
 2. CLICK an available day cell or button inside the calendar dialog for the departure date.
 3. CLICK a second day cell for the return date if the flow requires a round trip.
-Do NOT use action_type "fill" on date labels, span elements, or any non-input date trigger — they will always raise an element-type error.
+Do NOT use action_type "fill" on the airline booking "Dates" labels, span elements, or any non-input date trigger — they will always raise an element-type error.
+
+REGISTRATION FORM DATE OF BIRTH FIELDS:
+When filling a "Date de naissance" (date of birth) or similar birthday field in a REGISTRATION or SIGN-UP form:
+- These are standard HTML <input type="date"> or text inputs — use action_type "fill" with the value in the format shown (e.g. "15/05/1998" or "1998-05-15").
+- Do NOT use the CALENDAR CLICK sequence for these fields.
+- Use the exact selector provided by the user (e.g. [name='dateOfBirth'], #dob, input[placeholder*='naissance']) — do NOT reroute to the airline "Dates" picker.
 
 SELECTOR STYLE FOR CALENDARS:
 When targeting calendar day cells, use ONLY simple selectors — never complex chained :not() CSS:

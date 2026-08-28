@@ -16,9 +16,14 @@ DISAMBIGUATION & AIRLINE BOOKING RULES:
 1. Target the main booking card widget under the "Réservation" section, NOT the top header navigation or top bar search icon.
 2. Check existing field values: If "Sélectionnez l'origine" is already pre-filled (e.g. "Casablanca, Maroc"), do NOT create a fill step to re-type it unless explicitly asked to change origin.
 3. For destination selection, target the combobox/input labeled "Sélectionnez une destination".
-4. For departure/return dates, target the "Dates" input picker.
+4. For departure/return booking dates, target the airline "Dates" input picker (the calendar widget).
 5. The final search submission button on booking forms is typically "Rechercher des vols" — target this specific button inside the booking card.
 6. The Keycloak registration form submit button is typically labeled 'Enregistrement' (Sign up/Register in French) — use page.get_by_role('button', name='Enregistrement') to submit the registration form.
+
+REGISTRATION FORM DATE OF BIRTH FIELDS:
+When the failed step is filling a "Date de naissance" / birthday / date of birth field in a registration form:
+- This is a plain HTML input (type="date" or type="text") — do NOT propose a calendar-widget locator like text='Dates' or mat-calendar.
+- Propose: page.get_by_label('Date de naissance') or input[name*='birth'] or input[type='date'] or the specific CSS selector for the birth date field.
 
 DESTINATION COMBOBOX RULE (CRITICAL):
 The destination field is a combobox/autocomplete widget — NOT a plain text input.

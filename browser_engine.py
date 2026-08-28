@@ -189,8 +189,17 @@ class PlaywrightBrowserEngine:
 
         # Date picker fallback: the trigger is a styled button/mask, not a standard
         # <input type="text">, so get_by_role("textbox", name="Dates") fails.
-        # Chain multiple locator strategies to match whatever the site renders.
-        if "Dates" in selector or "date" in selector.lower():
+        # IMPORTANT: only activate this for the airline booking "Dates" picker —
+        # NOT for generic form inputs like birth-date fields (e.g. #dateOfBirth,
+        # [name='date_naissance']).  We match when the selector is EXACTLY the
+        # booking-widget label "Dates" (or a locator expression that references it),
+        # but not when "date" appears as part of a CSS id/class/attribute.
+        _is_booking_dates_picker = (
+            selector == "Dates"
+            or selector == "text='Dates'"
+            or ("'Dates'" in selector and "get_by" in selector)
+        )
+        if _is_booking_dates_picker:
             logger.debug(f"Applying date-picker fallback for selector: {selector}")
             return (
                 self.page.locator("text='Dates'")
@@ -305,11 +314,30 @@ class PlaywrightBrowserEngine:
                 await locator.wait_for(state="visible", timeout=config.DEFAULT_WAIT_TIME)
                 # 2. Use force click to focus behind input masks (e.g. autocomplete-mat__input__mask)
                 await locator.click(force=True, timeout=config.DEFAULT_WAIT_TIME)
-                # 3. Attempt fill, bypassing layout interceptions (e.g. hs-interactives-modal-overlay).
+                # 3. For input[type="date"] elements the browser only accepts values in
+                #    YYYY-MM-DD (ISO 8601) format.  Auto-convert DD/MM/YYYY or DD-MM-YYYY
+                #    values that users/planners commonly supply.
+                fill_value = step.value
+                try:
+                    input_type = await locator.get_attribute("type", timeout=2000)
+                    if input_type == "date":
+                        import re as _re
+                        # Match DD/MM/YYYY or DD-MM-YYYY
+                        m = _re.match(r"^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$", fill_value.strip())
+                        if m:
+                            dd, mm, yyyy = m.group(1), m.group(2), m.group(3)
+                            fill_value = f"{yyyy}-{mm.zfill(2)}-{dd.zfill(2)}"
+                            logger.info(
+                                f"Step {step.step_id}: converted date value "
+                                f"'{step.value}' → '{fill_value}' for input[type='date']"
+                            )
+                except Exception:
+                    pass  # Attribute fetch is best-effort; proceed with original value
+                # 4. Attempt fill, bypassing layout interceptions (e.g. hs-interactives-modal-overlay).
                 #    If the element is a non-input widget (styled span/div/button used as a date
                 #    picker trigger), fall back to clicking open the calendar and selecting day cells.
                 try:
-                    await locator.fill(step.value, force=True, timeout=config.DEFAULT_WAIT_TIME)
+                    await locator.fill(fill_value, force=True, timeout=config.DEFAULT_WAIT_TIME)
                 except Exception as e:
                     if "not an <input>" in str(e) or "contenteditable" in str(e):
                         logger.warning(
@@ -379,7 +407,17 @@ class PlaywrightBrowserEngine:
                 try:
                     locator = (await self.resolve_locator(step.selector)).first
                     if step.action_type == ActionType.FILL:
-                        await locator.fill(str(step.value), timeout=3000)
+                        recovery_value = str(step.value)
+                        try:
+                            import re as _re
+                            rt = await locator.get_attribute("type", timeout=1000)
+                            if rt == "date":
+                                m2 = _re.match(r"^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$", recovery_value.strip())
+                                if m2:
+                                    recovery_value = f"{m2.group(3)}-{m2.group(2).zfill(2)}-{m2.group(1).zfill(2)}"
+                        except Exception:
+                            pass
+                        await locator.fill(recovery_value, timeout=3000)
                     elif step.action_type == ActionType.CLICK:
                         await locator.click(force=True, timeout=3000)
                     else:
