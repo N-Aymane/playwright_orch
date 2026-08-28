@@ -91,6 +91,11 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             is_complete = next_index >= len(steps)
 
             logger.info(f"Step {current_step.step_id} PASSED")
+            await browser_engine.push_hud_log(
+                "pass",
+                f"Step {current_step.step_id} PASSED",
+                current_step.description[:120]
+            )
 
             return {
                 **state,
@@ -107,6 +112,11 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             steps[current_index] = current_step
 
             logger.warning(f"Step {current_step.step_id} FAILED - Error: {current_step.error_message}")
+            await browser_engine.push_hud_log(
+                "fail",
+                f"Step {current_step.step_id} FAILED",
+                f"{current_step.description[:80]} — {current_step.error_message or ''}".rstrip(" —")
+            )
 
             return {
                 **state,
@@ -136,6 +146,11 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
                 f"Step {failed_step.step_id} exceeded max retries "
                 f"({failed_step.max_retries}). Marking test as FAILED."
             )
+            await browser_engine.push_hud_log(
+                "fail",
+                f"Step {failed_step.step_id} FAILED (max retries)",
+                f"Exceeded {failed_step.max_retries} retries — {failed_step.description[:80]}"
+            )
             failed_step = failed_step.model_copy(update={"status": "failed"})
             steps[current_index] = failed_step
             return {
@@ -156,6 +171,11 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             logger.info(
                 f"HealerAgent provided new selector for step {failed_step.step_id}: '{new_selector}'"
             )
+            await browser_engine.push_hud_log(
+                "heal",
+                f"Step {failed_step.step_id} Healed 🩹",
+                f"New selector: {new_selector[:90]}"
+            )
             healed_step = failed_step.model_copy(update={
                 "selector": new_selector,
                 "retry_count": failed_step.retry_count + 1,
@@ -172,6 +192,11 @@ def create_orchestrator_graph(browser_engine: PlaywrightBrowserEngine, llm_clien
             }
         else:
             logger.error(f"HealerAgent could not suggest a fix for step {failed_step.step_id}. Aborting.")
+            await browser_engine.push_hud_log(
+                "fail",
+                f"Step {failed_step.step_id} ABORTED",
+                "Healer Agent exhausted all attempts without finding a valid selector."
+            )
             failed_step = failed_step.model_copy(update={"status": "failed"})
             steps[current_index] = failed_step
             return {

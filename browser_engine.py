@@ -18,6 +18,7 @@ class PlaywrightBrowserEngine:
         self.initial_url: Optional[str] = None
         self.console_logs: List[str] = []
         self.network_errors: List[str] = []
+        self.exit_signal: asyncio.Event = asyncio.Event()  # Set when user clicks HUD "Exit & Close"
 
     async def __aenter__(self):
         # Support async context manager usage: `async with PlaywrightBrowserEngine()`
@@ -48,6 +49,12 @@ class PlaywrightBrowserEngine:
             sources=True
         )
         self.page = await self.context.new_page()
+
+        # Expose a Python binding so the HUD "Exit & Close" button can signal Python.
+        await self.page.expose_binding(
+            "copilot_close_session",
+            lambda source: self.exit_signal.set()
+        )
 
         # Inject stylesheet to suppress HubSpot overlays that intercept pointer events.
         # Targets: #hs-interactives-modal-overlay, #hs-web-interactives-top-anchor,
@@ -91,7 +98,126 @@ class PlaywrightBrowserEngine:
         # Wire up interceptors
         self.page.on("console", self._handle_console)
         self.page.on("response", self._handle_response)
-        
+
+        # Inject the Copilot HUD floating widget into every page load.
+        # Uses Shadow DOM for full CSS isolation from the target site.
+        # Defers DOM insertion to DOMContentLoaded so document.body exists.
+        await self.page.add_init_script("""
+        (() => {
+            function __buildCopilotHUD() {
+                if (window.__copilot_injected) return;
+                if (!document.body && !document.documentElement) return;
+                window.__copilot_injected = true;
+
+                const host = document.createElement('div');
+                host.id = 'copilot-hud-host';
+                host.style.cssText = [
+                    'position:fixed',
+                    'bottom:24px',
+                    'right:24px',
+                    'z-index:2147483647',
+                    'font-family:system-ui,sans-serif',
+                    'pointer-events:auto',
+                ].join(';') + ';';
+
+                // Prefer body; fall back to documentElement
+                (document.body || document.documentElement).appendChild(host);
+
+                const shadow = host.attachShadow({mode: 'open'});
+                shadow.innerHTML = `
+                    <style>
+                        *{box-sizing:border-box;margin:0;padding:0;}
+                        .bubble{width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,0.5);font-size:26px;transition:transform 0.2s,box-shadow 0.2s;user-select:none;}
+                        .bubble:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(99,102,241,0.7);}
+                        .panel{position:absolute;bottom:64px;right:0;width:390px;max-height:510px;background:#1e1e2e;color:#cdd6f4;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.6);display:flex;flex-direction:column;overflow:hidden;font-size:13px;border:1px solid #313244;}
+                        .header{background:#181825;padding:14px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #313244;}
+                        .header-left{display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:0.01em;}
+                        .dot{width:8px;height:8px;border-radius:50%;background:#a6e3a1;flex-shrink:0;animation:pulse 1.6s ease-in-out infinite;}
+                        .dot.done{animation:none;}
+                        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
+                        #status-badge{font-size:11px;font-weight:600;color:#89b4fa;background:#313244;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+                        .logs{padding:10px;overflow-y:auto;flex-grow:1;display:flex;flex-direction:column;gap:6px;}
+                        .logs::-webkit-scrollbar{width:4px;}
+                        .logs::-webkit-scrollbar-thumb{background:#45475a;border-radius:4px;}
+                        .log-item{background:#313244;padding:9px 11px;border-radius:8px;line-height:1.45;}
+                        .log-item.pass{border-left:3px solid #a6e3a1;}
+                        .log-item.fail{border-left:3px solid #f38ba8;}
+                        .log-item.heal{border-left:3px solid #f9e2af;}
+                        .log-item.info{border-left:3px solid #89b4fa;}
+                        .log-title{font-weight:600;font-size:12px;}
+                        .log-detail{font-size:11px;color:#a6adc8;margin-top:3px;word-break:break-word;}
+                        .footer{padding:10px 14px;background:#181825;display:flex;justify-content:flex-end;border-top:1px solid #313244;}
+                        .btn-exit{background:#f38ba8;color:#11111b;border:none;padding:7px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px;transition:opacity 0.2s;letter-spacing:0.01em;}
+                        .btn-exit:hover{opacity:0.82;}
+                        .btn-exit:disabled{opacity:0.4;cursor:default;}
+                    </style>
+                    <div class="bubble" id="btn-toggle">🤖</div>
+                    <div class="panel" id="panel">
+                        <div class="header">
+                            <div class="header-left"><div class="dot" id="status-dot"></div>AI Copilot HUD</div>
+                            <span id="status-badge">Running&hellip;</span>
+                        </div>
+                        <div class="logs" id="log-container">
+                            <div class="log-item info"><div class="log-title">Agent started</div><div class="log-detail">Waiting for step execution&hellip;</div></div>
+                        </div>
+                        <div class="footer">
+                            <button class="btn-exit" id="btn-exit">Exit &amp; Close</button>
+                        </div>
+                    </div>
+                `;
+
+                const toggle  = shadow.getElementById('btn-toggle');
+                const panel   = shadow.getElementById('panel');
+                const exitBtn = shadow.getElementById('btn-exit');
+
+                // Panel is open by default so agent activity is immediately visible
+                let panelOpen = true;
+
+                toggle.addEventListener('click', () => {
+                    panelOpen = !panelOpen;
+                    panel.style.display = panelOpen ? 'flex' : 'none';
+                });
+
+                exitBtn.addEventListener('click', () => {
+                    exitBtn.disabled = true;
+                    exitBtn.textContent = 'Closing\u2026';
+                    if (window.copilot_close_session) window.copilot_close_session();
+                });
+
+                window.__copilot_push_log = (type, title, detail) => {
+                    const logs = shadow.getElementById('log-container');
+                    const item = document.createElement('div');
+                    item.className = 'log-item ' + type;
+                    item.innerHTML =
+                        '<div class="log-title">' + title + '</div>' +
+                        '<div class="log-detail">' + detail + '</div>';
+                    logs.appendChild(item);
+                    logs.scrollTop = logs.scrollHeight;
+                    // Auto-show panel on new log if it was collapsed
+                    if (!panelOpen) {
+                        panelOpen = true;
+                        panel.style.display = 'flex';
+                    }
+                };
+
+                window.__copilot_set_status = (text, done) => {
+                    const badge = shadow.getElementById('status-badge');
+                    const dot   = shadow.getElementById('status-dot');
+                    if (badge) badge.textContent = text;
+                    if (dot && done) dot.classList.add('done');
+                };
+            }
+
+            // Defer to DOMContentLoaded so document.body is guaranteed to exist.
+            // If the document is already interactive/complete, run immediately.
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', __buildCopilotHUD);
+            } else {
+                __buildCopilotHUD();
+            }
+        })();
+        """)
+
         logger.info("Browser initialized successfully.")
 
     def _handle_console(self, msg):
@@ -152,6 +278,14 @@ class PlaywrightBrowserEngine:
                 await self.page.goto(url, wait_until="commit", timeout=15000)
             else:
                 raise
+        # Belt-and-suspenders: call __buildCopilotHUD() after each navigation in case
+        # add_init_script fired before DOMContentLoaded on this specific page.
+        try:
+            await self.page.evaluate(
+                "if (typeof __buildCopilotHUD === 'function') __buildCopilotHUD();"
+            )
+        except Exception:
+            pass  # Best-effort — never block navigation
 
     async def get_accessibility_tree(self) -> str:
         """
@@ -448,3 +582,47 @@ class PlaywrightBrowserEngine:
             logger.info("Browser Engine stopped successfully.")
         except Exception as e:
             logger.error(f"Error during Browser Engine teardown: {e}")
+
+    # ------------------------------------------------------------------
+    # Copilot HUD helpers
+    # ------------------------------------------------------------------
+
+    async def push_hud_log(self, log_type: str, title: str, detail: str = "") -> None:
+        """Push a live log entry into the in-browser Copilot HUD panel.
+
+        log_type: 'pass' | 'fail' | 'heal' | 'info'
+        title:    Bold first line shown in the HUD card.
+        detail:   Smaller sub-text shown beneath the title.
+        This is best-effort — any error is silently swallowed so it never
+        blocks or crashes the test run.
+        """
+        if not self.page:
+            return
+        try:
+            safe_title  = str(title).replace("'", "\\'").replace("\n", " ")
+            safe_detail = str(detail).replace("'", "\\'").replace("\n", " ")
+            await self.page.evaluate(
+                f"if (window.__copilot_push_log) "
+                f"window.__copilot_push_log('{log_type}', '{safe_title}', '{safe_detail}');"
+            )
+        except Exception:
+            pass  # HUD is purely decorative — never block execution
+
+    async def wait_for_hud_exit(self) -> None:
+        """Hold the browser open until the user clicks 'Exit & Close' in the HUD.
+
+        In headless mode this is a no-op so CI runs are unaffected.
+        """
+        if self.headless or not self.page:
+            return
+        # Update the HUD to show the run is complete and the pulse dot goes static
+        try:
+            await self.page.evaluate(
+                "if (window.__copilot_set_status) "
+                "window.__copilot_set_status('Done \u2713', true);"
+            )
+        except Exception:
+            pass
+        logger.info("Copilot HUD: browser held open — waiting for user to click 'Exit & Close'.")
+        await self.exit_signal.wait()
+        logger.info("Copilot HUD: exit signal received. Proceeding to browser teardown.")
