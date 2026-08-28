@@ -24,7 +24,7 @@ REGISTRATION FORM DATE OF BIRTH FIELDS:
 When the failed step is filling a "Date de naissance" / birthday / date of birth field in a registration form:
 - This is a plain HTML input (type="date" or type="text") — do NOT propose a calendar-widget locator like text='Dates' or mat-calendar.
 - Propose: page.get_by_label('Date de naissance') or input[name*='birth'] or input[type='date'] or the specific CSS selector for the birth date field.
-
+    
 DESTINATION COMBOBOX RULE (CRITICAL):
 The destination field is a combobox/autocomplete widget — NOT a plain text input.
 Do NOT use action_type "fill" on it. Always use this exact two-step sequence:

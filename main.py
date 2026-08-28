@@ -34,6 +34,13 @@ from orchestrator import create_orchestrator_graph
 from utils.logger import get_logger
 from utils.reporter import generate_html_report, save_json_report
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 console = Console()
 logger = get_logger("main")
 
@@ -119,13 +126,38 @@ async def run_test(
                                     f"Step {last_executed.step_id}/{step_count}: "
                                     f"{last_executed.description[:70]}"
                                 )
-                final_state = node_state
+                # Only keep the last meaningful dict state — LangGraph can also
+                # emit None or Pydantic model chunks that are not subscriptable.
+                if isinstance(node_state, dict) and node_state:
+                    final_state = node_state
 
         except KeyboardInterrupt:
              console.print("\n[yellow]Test run interrupted by user.[/yellow]")
         except Exception as e:
              logger.error(f"Fatal error during graph execution: {e}")
              console.print(f"\n[bold red]Fatal error: {e}[/bold red]")
+
+        # --- Copilot HUD: push final summary card, then hold browser open ---
+        if final_state:
+            _fs = final_state if isinstance(final_state, dict) else {}
+            _done_steps = _fs.get("steps", [])
+            _p = sum(1 for s in _done_steps if s.status == "passed")
+            _h = sum(1 for s in _done_steps if s.status == "healed")
+            _f = sum(1 for s in _done_steps if s.status == "failed")
+            _ok = _f == 0
+            await browser_engine.push_hud_log(
+                "pass" if _ok else "fail",
+                "✅ Run Complete — All steps passed" if _ok else f"⚠ Run Complete — {_f} step(s) failed",
+                f"{_p} passed · {_h} healed · {_f} failed  |  {len(_done_steps)} total steps"
+            )
+
+        if not config.HEADLESS:
+            console.print(
+                "\n[bold yellow][HUD] Copilot HUD active[/bold yellow] — "
+                "[dim]click[/dim] [bold white]Exit & Close[/bold white] "
+                "[dim]in the browser to continue.[/dim]\n"
+            )
+        await browser_engine.wait_for_hud_exit()
 
     # --- Collect final state ---
     if final_state is None:

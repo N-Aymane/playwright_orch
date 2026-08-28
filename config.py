@@ -12,7 +12,7 @@ LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.0"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 
 # Per-agent caps keep output budgets small and predictable.
-PLANNER_MAX_TOKENS = int(os.getenv("PLANNER_MAX_TOKENS", "1024"))
+PLANNER_MAX_TOKENS = int(os.getenv("PLANNER_MAX_TOKENS", "3000"))
 EXECUTOR_MAX_TOKENS = int(os.getenv("EXECUTOR_MAX_TOKENS", "128"))
 HEALER_MAX_TOKENS = int(os.getenv("HEALER_MAX_TOKENS", "128"))
 CONSOLE_ANALYSIS_MAX_TOKENS = int(os.getenv("CONSOLE_ANALYSIS_MAX_TOKENS", "256"))
