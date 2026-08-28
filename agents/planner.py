@@ -43,11 +43,16 @@ EXECUTION RULES:
 4. Ignore cookie/consent popups — the framework handles these automatically.
 5. Adapt selector text to the site's language (e.g., French labels for French sites).
 
+PRE-FORM NAVIGATION & MODAL RULE:
+If the goal requires filling a form (such as sign-up, registration, or search) that is not visible on the initial landing page, you MUST first plan a `click` action on the trigger button (e.g. "S'inscrire", "Sign up", "Register", "Créer un compte") before generating steps to fill inputs.
+
 FORM REGISTRATION RULES:
 1. When the goal targets a registration/sign-up form, fill ALL required fields (first name, last name, email, date of birth, phone, password, confirm password).
 2. The Keycloak registration submit button is labeled 'Enregistrement' — use: page.get_by_role('button', name='Enregistrement')
 3. Password and confirm-password: use selectors #password and #password-confirm to avoid strict-mode collisions.
 4. Date of birth fields (e.g. 'Date de naissance') are plain HTML inputs — use action_type "fill", NOT a calendar click sequence.
+5. For Keycloak registration submission confirmation assertion, expected text value should be 'Vérification' or 'courriel' or 'e-mail' (matching the Keycloak email verification response screen).
+6. For the mobile / phone field on Keycloak registration forms, use selector: [name='user.attributes.mobile'] or input[name*='mobile'].
 
 AIRLINE BOOKING DATE PICKER (calendar widget only):
 The airline booking "Dates" widget is an interactive calendar — NOT a plain input. Sequence:

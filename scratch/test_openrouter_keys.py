@@ -3,18 +3,19 @@ import asyncio
 from openai import AsyncOpenAI
 
 async def test_keys():
-    # 1. Test the GitHub PAT
-    github_pat = os.getenv("OPENAI_API_KEY", "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")
-    print(f"\n--- Testing GitHub PAT key: {github_pat[:15]}... ---")
-    client1 = AsyncOpenAI(api_key=github_pat, base_url="https://openrouter.ai/api/v1")
+    # 1. Test the GitHub PAT with GitHub Models endpoint
+    github_pat = "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"
+    print(f"\n--- Testing GitHub PAT key with GitHub Models API: {github_pat[:15]}... ---")
+    client1 = AsyncOpenAI(api_key=github_pat, base_url="https://models.inference.ai.azure.com")
     try:
-        await client1.chat.completions.create(
-            model="openai/gpt-4.1-mini",
+        res = await client1.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": "hello"}],
             max_tokens=5
         )
+        print("SUCCESS GitHub Models:", res.choices[0].message.content)
     except Exception as e:
-        print("Result:", e)
+        print("Result GitHub Models:", e)
 
     # 2. Test a fake OpenRouter-formatted key
     fake_or_key = "sk-or-v1-0000000000000000000000000000000000000000000000000000000000000000"

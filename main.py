@@ -34,6 +34,13 @@ from orchestrator import create_orchestrator_graph
 from utils.logger import get_logger
 from utils.reporter import generate_html_report, save_json_report
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 console = Console()
 logger = get_logger("main")
 
@@ -146,7 +153,7 @@ async def run_test(
 
         if not config.HEADLESS:
             console.print(
-                "\n[bold yellow]⏸  Copilot HUD active[/bold yellow] — "
+                "\n[bold yellow][HUD] Copilot HUD active[/bold yellow] — "
                 "[dim]click[/dim] [bold white]Exit & Close[/bold white] "
                 "[dim]in the browser to continue.[/dim]\n"
             )
