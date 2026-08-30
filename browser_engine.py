@@ -325,6 +325,8 @@ class PlaywrightBrowserEngine:
         if selector.startswith("page.") or "get_by_" in selector:
             logger.debug(f"Evaluating Python locator expression: {selector}")
             try:
+                if not selector.endswith(")"):
+                    raise ValueError(f"Locator expression '{selector}' is missing parentheses/arguments. Use e.g. {selector}('Text here')")
                 # Evaluate expression with self.page in context
                 locator = eval(selector, {"page": self.page})
                 if not isinstance(locator, Locator):

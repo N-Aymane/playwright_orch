@@ -43,6 +43,7 @@ Analysis Process:
    e. Avoid: long XPath chains, positional selectors (nth-child), volatile generated class names
 
 Output ONLY the corrected selector string. Nothing else. No explanation. No quotes around it unless part of a Python expression.
+NEVER output a bare Playwright method (like "page.get_by_placeholder") without parentheses and arguments. Always include the exact text/name.
 
 Examples of good outputs:
   page.get_by_role('button', name='Create Account')

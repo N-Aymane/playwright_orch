@@ -25,6 +25,7 @@ SCHEMA (every object must match exactly):
 SELECTOR RULES:
 - Prefer: page.get_by_role('button', name='Submit') or page.get_by_label('Email')
 - Acceptable: CSS id/attribute selectors like #email, [name="password"], input[type="date"]
+- NEVER use a bare Playwright method (like "page.get_by_placeholder") without parentheses and arguments. Always include the exact text/name.
 - For password and confirm-password fields always use: #password and #password-confirm
 - For plain text matches: text='Sign In'
 - NEVER include a separate selector_type field — omit it entirely.
