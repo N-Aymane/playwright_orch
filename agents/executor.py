@@ -8,6 +8,28 @@ import config
 
 logger = get_logger("executor_agent")
 
+async def resolve_element(page, selector: str):
+    selector = selector.strip()
+    if not selector:
+        # Fallback to tel/mobile inputs if selector is empty
+        return page.locator("input[type='tel'], input[name*='mobile'], input[id*='mobile']").first
+
+    # Auto-repair unclosed quotes/parentheses from LLM output
+    if selector.startswith("page.") or "get_by_" in selector:
+        if selector.count("(") > selector.count(")"):
+            selector += ")" * (selector.count("(") - selector.count(")"))
+        if selector.count("'") % 2 != 0:
+            selector += "'"
+        if selector.count('"') % 2 != 0:
+            selector += '"'
+        try:
+            return eval(selector, {"page": page})
+        except Exception:
+            pass
+
+    # Standard CSS / XPath fallback
+    return page.locator(selector).first
+
 EXECUTOR_FORM_PROMPT = """You are an intelligent form data synthesizer for automated web testing.
 
 You will be given the details of a single form field (description and DOM/accessibility context).

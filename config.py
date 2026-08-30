@@ -1,28 +1,27 @@
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
-# API Keys & Provider Config
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-GOOGLE_API_KEY = GEMINI_API_KEY
-OPENAI_API_KEY = GEMINI_API_KEY  # Kept for backward compatibility with existing main.py checks
-API_KEY = GEMINI_API_KEY
+# API Keys (Groq is fully OpenAI-compatible)
+OPENAI_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+GROQ_API_KEY = OPENAI_API_KEY
+API_KEY = OPENAI_API_KEY
 
-if not GEMINI_API_KEY:
-    raise ValueError("Missing Gemini API Key! Please set GEMINI_API_KEY or GOOGLE_API_KEY in your .env file.")
+if not OPENAI_API_KEY:
+    raise ValueError("Missing API Key! Please set GROQ_API_KEY in your .env file.")
 
-# Model & Parameter Settings
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.groq.com/openai/v1")
+BASE_URL = OPENAI_API_BASE
+
+# Model Settings
+LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
 MODEL_NAME = LLM_MODEL
 LLM_TEMPERATURE = 0.0
 TEMPERATURE = 0.0
 LLM_MAX_TOKENS = 4096
 MAX_TOKENS = 4096
-
-# Expected variables for backward compatibility
-OPENAI_API_BASE = None
 PLANNER_MAX_TOKENS = int(os.getenv("PLANNER_MAX_TOKENS", "4096"))
 EXECUTOR_MAX_TOKENS = int(os.getenv("EXECUTOR_MAX_TOKENS", "128"))
 HEALER_MAX_TOKENS = int(os.getenv("HEALER_MAX_TOKENS", "256"))
@@ -40,19 +39,20 @@ HEADLESS = False
 TIMEOUT = 30000
 
 def get_llm_client():
-    return ChatGoogleGenerativeAI(
+    return ChatOpenAI(
         model=LLM_MODEL,
-        google_api_key=GEMINI_API_KEY,
+        openai_api_key=OPENAI_API_KEY,
+        openai_api_base=OPENAI_API_BASE,
         temperature=LLM_TEMPERATURE,
-        max_output_tokens=LLM_MAX_TOKENS,
+        max_tokens=LLM_MAX_TOKENS,
     )
 
 class LangChainOpenAIWrapper:
     """
-    OpenAI client wrapper around LangChain's ChatGoogleGenerativeAI.
+    OpenAI client wrapper around LangChain's ChatOpenAI.
     Ensures backward compatibility with agent classes calling `llm.chat.completions.create()`.
     """
-    def __init__(self, langchain_client: ChatGoogleGenerativeAI):
+    def __init__(self, langchain_client: ChatOpenAI):
         self.langchain_client = langchain_client
         self.chat = self
         self.completions = self
@@ -75,7 +75,7 @@ class LangChainOpenAIWrapper:
         if temperature is not None:
             invoke_params["temperature"] = temperature
         if max_tokens is not None:
-            invoke_params["max_output_tokens"] = max_tokens
+            invoke_params["max_tokens"] = max_tokens
 
         response = await self.langchain_client.ainvoke(lc_messages, **invoke_params)
 

@@ -60,14 +60,26 @@ def extract_clean_selector(raw_text: str) -> str:
     if match:
         return match.group(1)
         
-    # 2. Match CSS / ID / Attribute selectors: #id, [name='...'], input[...], etc.
-    match = re.search(r"([#\.\[a-zA-Z0-9_-]+(?:\[[^\]]+\])?)", raw_text)
+    # 2. Extract from markdown backticks if present
+    match = re.search(r"`([^`]+)`", raw_text)
     if match:
-        return match.group(1)
+        return match.group(1).strip()
         
+    # 3. Match valid CSS selectors by requiring them to start with #, ., [, or a tag name followed by [
+    match = re.search(r"(^[#\.\[][a-zA-Z0-9_-]+(?:\[[^\]]+\])?|[a-zA-Z0-9_-]+\[[^\]]+\])", raw_text)
+    if match:
+        extracted = match.group(1)
+        # Prevent matching bare words like "or"
+        if extracted.lower() not in ("or", "and", "if", "for", "while"):
+            return extracted
+            
     # Fallback to the last line of output if it looks like code
     lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
-    return lines[-1] if lines else raw_text
+    if lines:
+        last_line = lines[-1].strip("'\"")
+        if last_line.lower() not in ("or", "and"):
+            return last_line
+    return raw_text.strip("'\"")
 
 class HealerAgent:
     def __init__(self, llm_client: AsyncOpenAI):
