@@ -25,6 +25,7 @@ SCHEMA (every object must match exactly):
 SELECTOR RULES:
 - Prefer: page.get_by_role('button', name='Submit') or page.get_by_label('Email')
 - Acceptable: CSS id/attribute selectors like #email, [name="password"], input[type="date"]
+- NEVER use a bare Playwright method (like "page.get_by_placeholder") without parentheses and arguments. Always include the exact text/name.
 - For password and confirm-password fields always use: #password and #password-confirm
 - For plain text matches: text='Sign In'
 - NEVER include a separate selector_type field — omit it entirely.
@@ -52,7 +53,7 @@ FORM REGISTRATION RULES:
 3. Password and confirm-password: use selectors #password and #password-confirm to avoid strict-mode collisions.
 4. Date of birth fields (e.g. 'Date de naissance') are plain HTML inputs — use action_type "fill", NOT a calendar click sequence.
 5. For Keycloak registration submission confirmation assertion, expected text value should be 'Vérification' or 'courriel' or 'e-mail' (matching the Keycloak email verification response screen).
-6. For the mobile / phone field on Keycloak registration forms, use selector: [name='user.attributes.mobile'] or input[name*='mobile'].
+6. For the mobile / phone field on Keycloak registration forms, always use selector: "[name='user.attributes.mobile']".
 
 AIRLINE BOOKING DATE PICKER (calendar widget only):
 The airline booking "Dates" widget is an interactive calendar — NOT a plain input. Sequence:

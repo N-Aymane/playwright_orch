@@ -70,16 +70,14 @@ async def run_test(
 
     # --- Validate API Key ---
     if not config.OPENAI_API_KEY:
-        console.print("[bold red]ERROR: OPENAI_API_KEY is not set.[/bold red]")
+        console.print("[bold red]ERROR: GEMINI_API_KEY or GOOGLE_API_KEY is not set.[/bold red]")
         console.print("Set it in a [yellow].env[/yellow] file or as an environment variable:")
-        console.print("  [dim]OPENAI_API_KEY=sk-...[/dim]")
+        console.print("  [dim]GEMINI_API_KEY=AIzaSy...[/dim]")
         sys.exit(1)
 
     # --- Initialize LLM Client ---
-    llm_client = AsyncOpenAI(
-        api_key=config.OPENAI_API_KEY,
-        base_url=config.OPENAI_API_BASE
-    )
+    from config import get_llm_client, LangChainOpenAIWrapper
+    llm_client = LangChainOpenAIWrapper(get_llm_client())
 
     # --- Initialize Browser Engine ---
     # Use async context manager for safe startup/teardown of Playwright
